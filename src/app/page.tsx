@@ -30,20 +30,31 @@ interface Alert {
   timestamp: number;
 }
 
+interface Sentiment {
+  symbol: string;
+  overall: string;
+  score: number;
+  summary: string;
+}
+
 async function fetchDashboardData() {
-  const [pricesRes, alertsRes] = await Promise.all([
+  const [pricesRes, alertsRes, sentimentRes] = await Promise.all([
     fetch("/api/prices"),
     fetch("/api/alerts"),
+    fetch("/api/sentiment"),
   ]);
 
   const prices = await pricesRes.json();
   const alerts = await alertsRes.json();
+  const sentiment = await sentimentRes.json();
 
   return {
     prices: prices.data?.prices || [],
     funding: prices.data?.funding || {},
     alerts: alerts.data?.alerts || [],
     alertSummary: alerts.data?.summary || { total: 0, critical: 0 },
+    sentiments: sentiment.data?.assets || [],
+    marketBias: sentiment.data?.marketBias || "NEUTRAL",
   };
 }
 
@@ -87,11 +98,13 @@ export default function Dashboard() {
     );
   }
 
-  const { prices, funding, alerts, alertSummary } = data || { 
+  const { prices, funding, alerts, alertSummary, sentiments, marketBias } = data || { 
     prices: [], 
     funding: {}, 
     alerts: [], 
-    alertSummary: { total: 0, critical: 0 } 
+    alertSummary: { total: 0, critical: 0 },
+    sentiments: [],
+    marketBias: "NEUTRAL",
   };
 
   const totalVolume = prices.reduce((sum: number, p: PriceData) => sum + (p.volume24h || 0), 0);
@@ -142,6 +155,30 @@ export default function Dashboard() {
           trend={funding.ETH}
         />
       </div>
+
+      {/* Market Sentiment */}
+      {sentiments.length > 0 && (
+        <div className="bg-[#12121a] rounded-xl border border-gray-800 p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold flex items-center gap-2">
+              <Activity className="w-5 h-5 text-purple-400" />
+              Market Sentiment
+            </h2>
+            <span className={`px-4 py-2 rounded-lg text-sm font-bold ${
+              marketBias === "BULLISH" ? "bg-green-500/20 text-green-400" :
+              marketBias === "BEARISH" ? "bg-red-500/20 text-red-400" :
+              "bg-gray-500/20 text-gray-400"
+            }`}>
+              {marketBias}
+            </span>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {sentiments.map((s: Sentiment) => (
+              <SentimentCard key={s.symbol} sentiment={s} />
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Asset Cards */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -277,6 +314,44 @@ function AlertRow({ alert }: { alert: Alert }) {
       <span className="text-sm text-gray-500">
         {formatDistanceToNow(alert.timestamp, { addSuffix: true })}
       </span>
+    </div>
+  );
+}
+
+function SentimentCard({ sentiment }: { sentiment: Sentiment }) {
+  const getColor = (overall: string) => {
+    if (overall.includes("BUY")) return "text-green-400";
+    if (overall.includes("SELL")) return "text-red-400";
+    return "text-gray-400";
+  };
+
+  const getBgColor = (overall: string) => {
+    if (overall.includes("BUY")) return "bg-green-500/10 border-green-500/30";
+    if (overall.includes("SELL")) return "bg-red-500/10 border-red-500/30";
+    return "bg-gray-500/10 border-gray-500/30";
+  };
+
+  return (
+    <div className={`rounded-xl border p-4 ${getBgColor(sentiment.overall)}`}>
+      <div className="flex items-center justify-between mb-2">
+        <span className="font-bold text-lg">{sentiment.symbol}</span>
+        <span className={`text-sm font-semibold ${getColor(sentiment.overall)}`}>
+          {sentiment.overall.replace("_", " ")}
+        </span>
+      </div>
+      <div className="mb-2">
+        <div className="flex items-center justify-between text-sm mb-1">
+          <span className="text-gray-500">Score</span>
+          <span className={getColor(sentiment.overall)}>{sentiment.score > 0 ? "+" : ""}{sentiment.score}</span>
+        </div>
+        <div className="h-2 bg-gray-800 rounded-full overflow-hidden">
+          <div
+            className={`h-full ${sentiment.score >= 0 ? "bg-green-500" : "bg-red-500"}`}
+            style={{ width: `${Math.abs(sentiment.score)}%`, marginLeft: sentiment.score < 0 ? "auto" : 0 }}
+          />
+        </div>
+      </div>
+      <p className="text-xs text-gray-400 line-clamp-2">{sentiment.summary}</p>
     </div>
   );
 }
