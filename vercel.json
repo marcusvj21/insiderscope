@@ -4,9 +4,5 @@
   "buildCommand": "npm run build",
   "outputDirectory": ".next",
   "installCommand": "npm install",
-  "regions": ["iad1"],
-  "env": {
-    "ETHERSCAN_API_KEY": "@etherscan_api_key",
-    "CRYPTOPANIC_API_KEY": "@cryptopanic_api_key"
-  }
+  "regions": ["iad1"]
 }
