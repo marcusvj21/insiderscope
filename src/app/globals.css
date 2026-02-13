@@ -1,70 +1,207 @@
 @import "tailwindcss";
 
 :root {
-  --background: #0a0a0f;
-  --foreground: #ffffff;
+  --bg-primary: #0a0a0a;
+  --bg-secondary: #111111;
+  --bg-tertiary: #1a1a1a;
+  --border: #2a2a2a;
+  --text-primary: #00ff00;
+  --text-secondary: #888888;
+  --text-muted: #555555;
+  --accent-green: #00ff00;
+  --accent-red: #ff3333;
+  --accent-yellow: #ffcc00;
+  --accent-blue: #00ccff;
+}
+
+* {
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', monospace !important;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: var(--font-geist-sans), system-ui, sans-serif;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: 13px;
+  line-height: 1.4;
 }
 
-/* Custom scrollbar */
+/* Terminal scrollbar */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #12121a;
+  background: var(--bg-primary);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #333;
-  border-radius: 4px;
+  background: var(--border);
+  border-radius: 0;
 }
 
 ::-webkit-scrollbar-thumb:hover {
   background: #444;
 }
 
-/* Animations */
-@keyframes pulse-slow {
-  0%, 100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.7;
-  }
+/* Blinking cursor effect */
+@keyframes blink {
+  0%, 50% { opacity: 1; }
+  51%, 100% { opacity: 0; }
 }
 
-.animate-pulse-slow {
-  animation: pulse-slow 2s ease-in-out infinite;
+.cursor-blink::after {
+  content: "█";
+  animation: blink 1s infinite;
+  color: var(--accent-green);
 }
 
-/* Glass effect */
-.glass {
-  background: rgba(18, 18, 26, 0.8);
-  backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+/* Terminal box */
+.terminal-box {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  padding: 8px 12px;
 }
 
-/* Gradient text */
-.gradient-text {
-  background: linear-gradient(135deg, #a855f7 0%, #ec4899 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+.terminal-header {
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 4px;
+  margin-bottom: 8px;
+  color: var(--text-secondary);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
 }
 
-/* Card hover effect */
-.card-hover {
-  transition: all 0.3s ease;
+/* Scanline effect */
+.scanlines {
+  position: relative;
 }
 
-.card-hover:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 10px 40px rgba(168, 85, 247, 0.1);
+.scanlines::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    rgba(0, 0, 0, 0.1),
+    rgba(0, 0, 0, 0.1) 1px,
+    transparent 1px,
+    transparent 2px
+  );
+  pointer-events: none;
+  z-index: 10;
+}
+
+/* Price colors */
+.price-up { color: var(--accent-green); }
+.price-down { color: var(--accent-red); }
+.price-neutral { color: var(--text-secondary); }
+
+/* Status indicators */
+.status-active {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  background: var(--accent-green);
+  border-radius: 50%;
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+/* Table styling */
+.terminal-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.terminal-table th {
+  text-align: left;
+  color: var(--text-muted);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.terminal-table td {
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.terminal-table tr:hover {
+  background: var(--bg-tertiary);
+}
+
+/* Ticker tape */
+.ticker-tape {
+  overflow: hidden;
+  white-space: nowrap;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border);
+  padding: 4px 0;
+}
+
+.ticker-content {
+  display: inline-block;
+  animation: ticker 30s linear infinite;
+}
+
+@keyframes ticker {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+
+/* ASCII borders */
+.ascii-box {
+  position: relative;
+  padding: 12px;
+  margin: 4px;
+}
+
+.ascii-box::before {
+  content: "┌" attr(data-title) "─────────────────────────────────┐";
+  position: absolute;
+  top: 0;
+  left: 0;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+/* Compact layout */
+.compact-grid {
+  display: grid;
+  gap: 2px;
+}
+
+/* Live indicator */
+.live-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  background: var(--accent-red);
+  border-radius: 50%;
+  margin-right: 6px;
+  animation: pulse 1s infinite;
+}
+
+/* Command prompt style */
+.prompt::before {
+  content: ">";
+  color: var(--accent-green);
+  margin-right: 8px;
+}
+
+/* Highlight on hover */
+.highlight-row:hover {
+  background: rgba(0, 255, 0, 0.05);
+  border-left: 2px solid var(--accent-green);
 }

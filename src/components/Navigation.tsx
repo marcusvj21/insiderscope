@@ -2,59 +2,60 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { 
-  LayoutDashboard, 
-  Newspaper, 
-  Bell, 
-  TrendingUp,
-  Eye 
-} from "lucide-react";
 
 const navItems = [
-  { href: "/", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/whales", label: "Whale Tracker", icon: Eye },
-  { href: "/news", label: "News", icon: Newspaper },
-  { href: "/alerts", label: "Alerts", icon: Bell },
-  { href: "/polymarket", label: "Polymarket", icon: TrendingUp },
+  { href: "/", label: "[DASHBOARD]", key: "F1" },
+  { href: "/whales", label: "[WHALES]", key: "F2" },
+  { href: "/news", label: "[NEWS]", key: "F3" },
+  { href: "/alerts", label: "[ALERTS]", key: "F4" },
+  { href: "/polymarket", label: "[PREDICT]", key: "F5" },
 ];
 
 export function Navigation() {
   const pathname = usePathname();
 
   return (
-    <header className="border-b border-gray-800 bg-[#0d0d14]">
-      <div className="container mx-auto px-4">
-        <div className="flex items-center justify-between h-16">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center">
-              <Eye className="w-5 h-5 text-white" />
-            </div>
-            <span className="text-xl font-bold bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
-              InsiderScope
-            </span>
-          </div>
-          
-          <nav className="flex items-center gap-1">
-            {navItems.map((item) => {
-              const Icon = item.icon;
-              const isActive = pathname === item.href;
-              
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${
-                    isActive
-                      ? "bg-purple-500/20 text-purple-400"
-                      : "text-gray-400 hover:text-white hover:bg-white/5"
-                  }`}
-                >
-                  <Icon className="w-4 h-4" />
-                  <span className="text-sm font-medium">{item.label}</span>
-                </Link>
-              );
-            })}
-          </nav>
+    <header className="border-b border-[#2a2a2a] bg-[#0a0a0a]">
+      {/* Top status bar */}
+      <div className="flex items-center justify-between px-4 py-1 border-b border-[#2a2a2a] text-[10px] text-[#555]">
+        <div className="flex items-center gap-4">
+          <span>INSIDERSCOPE v1.0.0</span>
+          <span className="text-[#00ff00]">● CONNECTED</span>
+        </div>
+        <div className="flex items-center gap-4">
+          <span>API: HYPERLIQUID</span>
+          <span>CHAIN: ETH</span>
+          <span>{new Date().toISOString().split('T')[0]}</span>
+        </div>
+      </div>
+      
+      {/* Navigation */}
+      <div className="flex items-center px-2 py-1">
+        <div className="flex items-center gap-1 text-[11px]">
+          {navItems.map((item) => {
+            const isActive = pathname === item.href;
+            
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={`px-3 py-1 transition-all ${
+                  isActive
+                    ? "bg-[#00ff00] text-black"
+                    : "text-[#888] hover:text-[#00ff00] hover:bg-[#1a1a1a]"
+                }`}
+              >
+                <span className="text-[#555] mr-1">{item.key}</span>
+                {item.label}
+              </Link>
+            );
+          })}
+        </div>
+        
+        <div className="ml-auto flex items-center gap-4 text-[10px] text-[#555]">
+          <span>MEM: 128MB</span>
+          <span>CPU: 2%</span>
+          <span className="text-[#00ff00]">LIVE</span>
         </div>
       </div>
     </header>

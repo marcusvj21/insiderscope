@@ -1,17 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { 
-  TrendingUp, 
-  TrendingDown, 
-  Activity,
-  DollarSign,
-  AlertTriangle,
-  Zap,
-  ArrowRight,
-} from "lucide-react";
-import Link from "next/link";
-import { formatDistanceToNow } from "date-fns";
+import { useEffect, useState } from "react";
 
 interface PriceData {
   symbol: string;
@@ -28,6 +18,7 @@ interface Alert {
   title: string;
   severity: "critical" | "warning" | "info";
   timestamp: number;
+  value: number;
 }
 
 interface Sentiment {
@@ -35,335 +26,273 @@ interface Sentiment {
   overall: string;
   score: number;
   summary: string;
+  signals: { indicator: string; signal: string; value: number }[];
 }
 
 async function fetchDashboardData() {
-  const [pricesRes, alertsRes, sentimentRes] = await Promise.all([
+  const [pricesRes, alertsRes, sentimentRes, walletsRes] = await Promise.all([
     fetch("/api/prices"),
     fetch("/api/alerts"),
     fetch("/api/sentiment"),
+    fetch("/api/wallets"),
   ]);
 
   const prices = await pricesRes.json();
   const alerts = await alertsRes.json();
   const sentiment = await sentimentRes.json();
+  const wallets = await walletsRes.json();
 
   return {
     prices: prices.data?.prices || [],
     funding: prices.data?.funding || {},
     alerts: alerts.data?.alerts || [],
-    alertSummary: alerts.data?.summary || { total: 0, critical: 0 },
     sentiments: sentiment.data?.assets || [],
     marketBias: sentiment.data?.marketBias || "NEUTRAL",
+    walletStats: wallets.data?.stats || { total: 0 },
   };
 }
 
-function formatNumber(num: number, decimals = 2): string {
-  if (num >= 1e9) return `$${(num / 1e9).toFixed(decimals)}B`;
-  if (num >= 1e6) return `$${(num / 1e6).toFixed(decimals)}M`;
-  if (num >= 1e3) return `$${(num / 1e3).toFixed(decimals)}K`;
-  return `$${num.toFixed(decimals)}`;
+function formatPrice(num: number): string {
+  return num.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-function formatPrice(num: number): string {
-  if (num >= 1000) return `$${num.toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
-  if (num >= 1) return `$${num.toFixed(2)}`;
-  return `$${num.toFixed(4)}`;
+function formatVolume(num: number): string {
+  if (num >= 1e9) return `${(num / 1e9).toFixed(1)}B`;
+  if (num >= 1e6) return `${(num / 1e6).toFixed(1)}M`;
+  if (num >= 1e3) return `${(num / 1e3).toFixed(1)}K`;
+  return num.toFixed(0);
+}
+
+function formatTime(timestamp: number): string {
+  const date = new Date(timestamp);
+  return date.toLocaleTimeString('en-US', { hour12: false });
 }
 
 export default function Dashboard() {
-  const { data, isLoading, error } = useQuery({
+  const [time, setTime] = useState(new Date());
+  
+  useEffect(() => {
+    const timer = setInterval(() => setTime(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const { data, isLoading } = useQuery({
     queryKey: ["dashboard"],
     queryFn: fetchDashboardData,
-    refetchInterval: 30000,
+    refetchInterval: 10000,
   });
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-96">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-purple-500 mx-auto mb-4"></div>
-          <p className="text-gray-500">Loading market data...</p>
-        </div>
+      <div className="p-4 text-[#00ff00]">
+        <pre>
+{`
+ ██╗███╗   ██╗███████╗██╗██████╗ ███████╗██████╗ 
+ ██║████╗  ██║██╔════╝██║██╔══██╗██╔════╝██╔══██╗
+ ██║██╔██╗ ██║███████╗██║██║  ██║█████╗  ██████╔╝
+ ██║██║╚██╗██║╚════██║██║██║  ██║██╔══╝  ██╔══██╗
+ ██║██║ ╚████║███████║██║██████╔╝███████╗██║  ██║
+ ╚═╝╚═╝  ╚═══╝╚══════╝╚═╝╚═════╝ ╚══════╝╚═╝  ╚═╝
+                                                  
+ LOADING MARKET DATA...
+ [████████████████████████████████████████] 100%
+`}
+        </pre>
       </div>
     );
   }
 
-  if (error) {
-    return (
-      <div className="flex items-center justify-center h-96 text-red-400">
-        <AlertTriangle className="w-6 h-6 mr-2" />
-        Error loading dashboard data
-      </div>
-    );
-  }
-
-  const { prices, funding, alerts, alertSummary, sentiments, marketBias } = data || { 
-    prices: [], 
-    funding: {}, 
-    alerts: [], 
-    alertSummary: { total: 0, critical: 0 },
+  const { prices, funding, alerts, sentiments, marketBias, walletStats } = data || {
+    prices: [],
+    funding: {},
+    alerts: [],
     sentiments: [],
     marketBias: "NEUTRAL",
+    walletStats: { total: 0 },
   };
 
-  const totalVolume = prices.reduce((sum: number, p: PriceData) => sum + (p.volume24h || 0), 0);
-
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">Market Overview</h1>
-          <p className="text-gray-500">Real-time tracking of BTC, ETH, HYPE</p>
-        </div>
-        {alertSummary.critical > 0 && (
-          <Link
-            href="/alerts"
-            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-colors animate-pulse"
-          >
-            <AlertTriangle className="w-4 h-4" />
-            {alertSummary.critical} Critical Alert{alertSummary.critical > 1 ? "s" : ""}
-            <ArrowRight className="w-4 h-4" />
-          </Link>
-        )}
-      </div>
-
-      {/* Stats Row */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <StatCard
-          icon={<DollarSign className="w-5 h-5" />}
-          label="24h Volume"
-          value={formatNumber(totalVolume)}
-        />
-        <StatCard
-          icon={<Activity className="w-5 h-5" />}
-          label="Active Alerts"
-          value={alertSummary.total.toString()}
-          highlight={alertSummary.critical > 0}
-        />
-        <StatCard
-          icon={<Zap className="w-5 h-5" />}
-          label="BTC Funding"
-          value={`${(funding.BTC || 0).toFixed(4)}%`}
-          trend={funding.BTC}
-        />
-        <StatCard
-          icon={<Zap className="w-5 h-5" />}
-          label="ETH Funding"
-          value={`${(funding.ETH || 0).toFixed(4)}%`}
-          trend={funding.ETH}
-        />
-      </div>
-
-      {/* Market Sentiment */}
-      {sentiments.length > 0 && (
-        <div className="bg-[#12121a] rounded-xl border border-gray-800 p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold flex items-center gap-2">
-              <Activity className="w-5 h-5 text-purple-400" />
-              Market Sentiment
-            </h2>
-            <span className={`px-4 py-2 rounded-lg text-sm font-bold ${
-              marketBias === "BULLISH" ? "bg-green-500/20 text-green-400" :
-              marketBias === "BEARISH" ? "bg-red-500/20 text-red-400" :
-              "bg-gray-500/20 text-gray-400"
-            }`}>
-              {marketBias}
+    <div className="p-2 text-[12px]">
+      {/* Ticker Tape */}
+      <div className="bg-[#111] border border-[#2a2a2a] mb-2 overflow-hidden">
+        <div className="flex items-center py-1 px-2 animate-pulse">
+          <span className="text-[#ff3333] mr-2">●</span>
+          <span className="text-[#888]">LIVE</span>
+          <span className="mx-4 text-[#2a2a2a]">│</span>
+          {prices.map((p: PriceData) => (
+            <span key={p.symbol} className="mx-4">
+              <span className="text-[#888]">{p.symbol}</span>
+              <span className="mx-2">${formatPrice(p.price)}</span>
+              <span className={p.change24h >= 0 ? "text-[#00ff00]" : "text-[#ff3333]"}>
+                {p.change24h >= 0 ? "▲" : "▼"} {Math.abs(p.change24h).toFixed(2)}%
+              </span>
             </span>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {sentiments.map((s: Sentiment) => (
-              <SentimentCard key={s.symbol} sentiment={s} />
-            ))}
-          </div>
+          ))}
+          <span className="mx-4 text-[#2a2a2a]">│</span>
+          <span className="text-[#888]">{time.toLocaleTimeString('en-US', { hour12: false })}</span>
         </div>
-      )}
-
-      {/* Asset Cards */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {prices.map((asset: PriceData) => (
-          <AssetCard key={asset.symbol} asset={asset} funding={funding[asset.symbol]} />
-        ))}
       </div>
 
-      {/* Recent Alerts */}
-      {alerts.length > 0 && (
-        <div className="bg-[#12121a] rounded-xl border border-gray-800 p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold flex items-center gap-2">
-              <AlertTriangle className="w-5 h-5 text-purple-400" />
-              Recent Alerts
-            </h2>
-            <Link
-              href="/alerts"
-              className="text-sm text-purple-400 hover:text-purple-300 flex items-center gap-1"
-            >
-              View All <ArrowRight className="w-4 h-4" />
-            </Link>
-          </div>
-          <div className="space-y-3">
-            {alerts.slice(0, 5).map((alert: Alert) => (
-              <AlertRow key={alert.id} alert={alert} />
-            ))}
+      <div className="grid grid-cols-12 gap-2">
+        {/* Left Panel - Prices */}
+        <div className="col-span-4">
+          <div className="bg-[#111] border border-[#2a2a2a] h-full">
+            <div className="border-b border-[#2a2a2a] px-2 py-1 text-[10px] text-[#555] uppercase tracking-wider">
+              ┌─ MARKET DATA ─────────────────────┐
+            </div>
+            <div className="p-2">
+              {prices.map((asset: PriceData) => (
+                <div key={asset.symbol} className="mb-4">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-[#00ff00] font-bold">{asset.symbol}</span>
+                    <span className={asset.change24h >= 0 ? "text-[#00ff00]" : "text-[#ff3333]"}>
+                      {asset.change24h >= 0 ? "+" : ""}{asset.change24h.toFixed(2)}%
+                    </span>
+                  </div>
+                  <div className="text-2xl font-bold mb-1">
+                    ${formatPrice(asset.price)}
+                  </div>
+                  <div className="text-[10px] text-[#555] grid grid-cols-2 gap-2">
+                    <span>VOL: ${formatVolume(asset.volume24h)}</span>
+                    <span>FUND: {(funding[asset.symbol] || 0).toFixed(4)}%</span>
+                  </div>
+                  <div className="mt-1 h-1 bg-[#1a1a1a]">
+                    <div 
+                      className={`h-full ${asset.change24h >= 0 ? "bg-[#00ff00]" : "bg-[#ff3333]"}`}
+                      style={{ width: `${Math.min(Math.abs(asset.change24h) * 10, 100)}%` }}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
-      )}
 
-      {/* Quick Links */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <QuickLink href="/whales" label="Whale Tracker" description="Monitor large wallets" />
-        <QuickLink href="/news" label="Market News" description="Latest crypto news" />
-        <QuickLink href="/alerts" label="All Alerts" description="Price & whale alerts" />
-        <QuickLink href="/polymarket" label="Polymarket" description="Prediction markets" />
+        {/* Middle Panel - Sentiment */}
+        <div className="col-span-4">
+          <div className="bg-[#111] border border-[#2a2a2a] mb-2">
+            <div className="border-b border-[#2a2a2a] px-2 py-1 text-[10px] text-[#555] uppercase tracking-wider">
+              ┌─ MARKET SENTIMENT ────────────────┐
+            </div>
+            <div className="p-2">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[#888]">BIAS:</span>
+                <span className={`font-bold ${
+                  marketBias === "BULLISH" ? "text-[#00ff00]" : 
+                  marketBias === "BEARISH" ? "text-[#ff3333]" : "text-[#888]"
+                }`}>
+                  {marketBias}
+                </span>
+              </div>
+              {sentiments.map((s: Sentiment) => (
+                <div key={s.symbol} className="mb-2 pb-2 border-b border-[#1a1a1a] last:border-0">
+                  <div className="flex items-center justify-between">
+                    <span>{s.symbol}</span>
+                    <span className={`text-[10px] px-2 py-0.5 ${
+                      s.overall.includes("BUY") ? "bg-[#00ff00]/20 text-[#00ff00]" :
+                      s.overall.includes("SELL") ? "bg-[#ff3333]/20 text-[#ff3333]" :
+                      "bg-[#888]/20 text-[#888]"
+                    }`}>
+                      {s.overall.replace("_", " ")}
+                    </span>
+                  </div>
+                  <div className="mt-1 flex items-center gap-2">
+                    <div className="flex-1 h-2 bg-[#1a1a1a] relative">
+                      <div 
+                        className="absolute top-0 bottom-0 left-1/2 w-0.5 bg-[#555]"
+                      />
+                      <div 
+                        className={`absolute top-0 bottom-0 ${s.score >= 0 ? "bg-[#00ff00]" : "bg-[#ff3333]"}`}
+                        style={{
+                          left: s.score >= 0 ? "50%" : `${50 + s.score / 2}%`,
+                          width: `${Math.abs(s.score) / 2}%`,
+                        }}
+                      />
+                    </div>
+                    <span className="text-[10px] w-8">{s.score}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Stats */}
+          <div className="bg-[#111] border border-[#2a2a2a]">
+            <div className="border-b border-[#2a2a2a] px-2 py-1 text-[10px] text-[#555] uppercase tracking-wider">
+              ┌─ SYSTEM STATUS ───────────────────┐
+            </div>
+            <div className="p-2 text-[11px]">
+              <div className="grid grid-cols-2 gap-1">
+                <span className="text-[#555]">WALLETS:</span>
+                <span className="text-[#00ff00]">{walletStats.total}</span>
+                <span className="text-[#555]">ALERTS:</span>
+                <span className="text-[#ffcc00]">{alerts.length}</span>
+                <span className="text-[#555]">API:</span>
+                <span className="text-[#00ff00]">ONLINE</span>
+                <span className="text-[#555]">LATENCY:</span>
+                <span className="text-[#00ff00]">42ms</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Right Panel - Alerts */}
+        <div className="col-span-4">
+          <div className="bg-[#111] border border-[#2a2a2a] h-full">
+            <div className="border-b border-[#2a2a2a] px-2 py-1 text-[10px] text-[#555] uppercase tracking-wider">
+              ┌─ LIVE ALERTS ─────────────────────┐
+            </div>
+            <div className="p-2 max-h-96 overflow-y-auto">
+              {alerts.length === 0 ? (
+                <div className="text-[#555] text-center py-4">
+                  NO ACTIVE ALERTS
+                </div>
+              ) : (
+                alerts.slice(0, 15).map((alert: Alert) => (
+                  <div 
+                    key={alert.id} 
+                    className={`mb-2 p-2 border-l-2 ${
+                      alert.severity === "critical" ? "border-[#ff3333] bg-[#ff3333]/5" :
+                      alert.severity === "warning" ? "border-[#ffcc00] bg-[#ffcc00]/5" :
+                      "border-[#00ccff] bg-[#00ccff]/5"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <span className={`text-[10px] ${
+                        alert.severity === "critical" ? "text-[#ff3333]" :
+                        alert.severity === "warning" ? "text-[#ffcc00]" :
+                        "text-[#00ccff]"
+                      }`}>
+                        [{alert.severity.toUpperCase()}]
+                      </span>
+                      <span className="text-[10px] text-[#555]">
+                        {formatTime(alert.timestamp)}
+                      </span>
+                    </div>
+                    <div className="text-[11px]">
+                      <span className="text-[#00ff00]">{alert.asset}</span>
+                      <span className="text-[#888] mx-1">│</span>
+                      <span>{alert.title}</span>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Bottom - Command Line */}
+      <div className="mt-2 bg-[#111] border border-[#2a2a2a] px-2 py-1">
+        <div className="flex items-center text-[11px]">
+          <span className="text-[#00ff00]">root@insiderscope</span>
+          <span className="text-[#888]">:</span>
+          <span className="text-[#00ccff]">~</span>
+          <span className="text-[#888]">$</span>
+          <span className="ml-2 text-[#555]">Ready for commands... Press F1-F5 to navigate</span>
+          <span className="ml-1 animate-pulse">█</span>
+        </div>
       </div>
     </div>
-  );
-}
-
-function StatCard({
-  icon,
-  label,
-  value,
-  trend,
-  highlight,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  value: string;
-  trend?: number;
-  highlight?: boolean;
-}) {
-  return (
-    <div className={`bg-[#12121a] rounded-xl border p-4 ${highlight ? "border-red-500/50" : "border-gray-800"}`}>
-      <div className="flex items-center justify-between mb-2">
-        <div className="p-2 rounded-lg bg-purple-500/10 text-purple-400">
-          {icon}
-        </div>
-        {trend !== undefined && (
-          <span className={trend >= 0 ? "text-green-400" : "text-red-400"}>
-            {trend >= 0 ? "+" : ""}{trend.toFixed(4)}%
-          </span>
-        )}
-      </div>
-      <p className="text-2xl font-bold">{value}</p>
-      <p className="text-sm text-gray-500">{label}</p>
-    </div>
-  );
-}
-
-function AssetCard({ asset, funding }: { asset: PriceData; funding?: number }) {
-  const isPositive = asset.change24h >= 0;
-
-  return (
-    <div className="bg-[#12121a] rounded-xl border border-gray-800 p-6 hover:border-purple-500/50 transition-colors">
-      <div className="flex items-center justify-between mb-4">
-        <div>
-          <h3 className="text-xl font-bold">{asset.symbol}</h3>
-          <p className="text-sm text-gray-500">
-            Updated {formatDistanceToNow(asset.lastUpdated, { addSuffix: true })}
-          </p>
-        </div>
-        <div
-          className={`flex items-center gap-1 px-3 py-1 rounded-full text-sm font-medium ${
-            isPositive
-              ? "bg-green-500/20 text-green-400"
-              : "bg-red-500/20 text-red-400"
-          }`}
-        >
-          {isPositive ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
-          {isPositive ? "+" : ""}{asset.change24h.toFixed(2)}%
-        </div>
-      </div>
-
-      <p className="text-4xl font-bold mb-4">{formatPrice(asset.price)}</p>
-
-      <div className="grid grid-cols-2 gap-4 pt-4 border-t border-gray-800">
-        <div>
-          <p className="text-sm text-gray-500">24h Volume</p>
-          <p className="font-semibold">{formatNumber(asset.volume24h)}</p>
-        </div>
-        {funding !== undefined && (
-          <div>
-            <p className="text-sm text-gray-500">Funding Rate</p>
-            <p className={`font-semibold ${funding >= 0 ? "text-green-400" : "text-red-400"}`}>
-              {funding >= 0 ? "+" : ""}{funding.toFixed(4)}%
-            </p>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function AlertRow({ alert }: { alert: Alert }) {
-  const severityColors = {
-    critical: "bg-red-500/10 border-red-500/30 text-red-400",
-    warning: "bg-yellow-500/10 border-yellow-500/30 text-yellow-400",
-    info: "bg-blue-500/10 border-blue-500/30 text-blue-400",
-  };
-
-  return (
-    <div className={`flex items-center justify-between p-3 rounded-lg border ${severityColors[alert.severity]}`}>
-      <div className="flex items-center gap-3">
-        <span className="px-2 py-0.5 rounded text-xs font-medium bg-purple-500/20 text-purple-400">
-          {alert.asset}
-        </span>
-        <span className="font-medium">{alert.title}</span>
-      </div>
-      <span className="text-sm text-gray-500">
-        {formatDistanceToNow(alert.timestamp, { addSuffix: true })}
-      </span>
-    </div>
-  );
-}
-
-function SentimentCard({ sentiment }: { sentiment: Sentiment }) {
-  const getColor = (overall: string) => {
-    if (overall.includes("BUY")) return "text-green-400";
-    if (overall.includes("SELL")) return "text-red-400";
-    return "text-gray-400";
-  };
-
-  const getBgColor = (overall: string) => {
-    if (overall.includes("BUY")) return "bg-green-500/10 border-green-500/30";
-    if (overall.includes("SELL")) return "bg-red-500/10 border-red-500/30";
-    return "bg-gray-500/10 border-gray-500/30";
-  };
-
-  return (
-    <div className={`rounded-xl border p-4 ${getBgColor(sentiment.overall)}`}>
-      <div className="flex items-center justify-between mb-2">
-        <span className="font-bold text-lg">{sentiment.symbol}</span>
-        <span className={`text-sm font-semibold ${getColor(sentiment.overall)}`}>
-          {sentiment.overall.replace("_", " ")}
-        </span>
-      </div>
-      <div className="mb-2">
-        <div className="flex items-center justify-between text-sm mb-1">
-          <span className="text-gray-500">Score</span>
-          <span className={getColor(sentiment.overall)}>{sentiment.score > 0 ? "+" : ""}{sentiment.score}</span>
-        </div>
-        <div className="h-2 bg-gray-800 rounded-full overflow-hidden">
-          <div
-            className={`h-full ${sentiment.score >= 0 ? "bg-green-500" : "bg-red-500"}`}
-            style={{ width: `${Math.abs(sentiment.score)}%`, marginLeft: sentiment.score < 0 ? "auto" : 0 }}
-          />
-        </div>
-      </div>
-      <p className="text-xs text-gray-400 line-clamp-2">{sentiment.summary}</p>
-    </div>
-  );
-}
-
-function QuickLink({ href, label, description }: { href: string; label: string; description: string }) {
-  return (
-    <Link
-      href={href}
-      className="bg-[#12121a] rounded-xl border border-gray-800 p-4 hover:border-purple-500/50 hover:bg-[#15151f] transition-all group"
-    >
-      <h3 className="font-semibold group-hover:text-purple-400 transition-colors">{label}</h3>
-      <p className="text-sm text-gray-500">{description}</p>
-    </Link>
   );
 }
